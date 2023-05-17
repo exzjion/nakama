@@ -643,17 +643,19 @@ func (s *ConsoleServer) UpdateAccount(ctx context.Context, in *console.UpdateAcc
 	}
 
 	var newPassword string
+	var hashedPassword []byte
 	if v := in.Password; v != nil {
 		p := v.Value
 		if len(p) < 8 {
 			return nil, status.Error(codes.InvalidArgument, "Password must be at least 8 characters long.")
 		}
-		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(p), bcrypt.DefaultCost)
+		_hashedPassword, err := bcrypt.GenerateFromPassword([]byte(p), bcrypt.DefaultCost)
 		if err != nil {
 			s.logger.Error("Error hashing password.", zap.Error(err))
 			return nil, status.Error(codes.Internal, "Error updating user account password.")
 		}
-		newPassword = string(hashedPassword)
+		hashedPassword = _hashedPassword
+		newPassword = string(_hashedPassword)
 	}
 
 	if v := in.Wallet; v != nil && v.Value != "" {
@@ -800,7 +802,7 @@ AND ((facebook_id IS NOT NULL
 
 		if len(newPassword) != 0 {
 			// Update the password on the user account only if they have an email associated.
-			res, err := tx.ExecContext(ctx, "UPDATE users SET password = $2, update_time = now() WHERE id = $1 AND email IS NOT NULL", userID, newPassword)
+			res, err := tx.ExecContext(ctx, "UPDATE users SET password = $2, update_time = now() WHERE id = $1 AND email IS NOT NULL", userID, hashedPassword)
 			if err != nil {
 				s.logger.Error("Could not update password.", zap.Error(err), zap.Any("user_id", userID))
 				return err
